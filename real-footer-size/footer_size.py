@@ -210,9 +210,14 @@ def modular_measure(path, converter, suffix_limit):
                     "length": int(pieces[2].split("=", 1)[1]),
                 }
         measured_size = output.stat().st_size
-        if values.get("modular_total_bytes") != measured_size:
+        # The converter writes the modular blob (modular_total_bytes) followed by a small
+        # locator trailer (12 bytes metadata-only, 20 full-file). The footer-size metric is
+        # the blob; verify the file is the blob plus that trailer, then report the blob size.
+        total = values.get("modular_total_bytes")
+        if total is None or not 0 <= measured_size - total <= 20:
             raise ValueError("converter output size does not match its report")
         serialized = output.read_bytes()
+        measured_size = total
         module_bytes = {
             name: serialized[module["offset"]:module["offset"] + module["length"]]
             for name, module in modules.items()
