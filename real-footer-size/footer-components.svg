@@ -29,14 +29,14 @@
 <text x="1018.0" y="199" class="total">4.53 MiB (100.0%)</text>
 <text x="148" y="243" class="variant">Modular</text>
 <rect x="220" y="224" width="0.0" height="28" fill="#dc2626"/>
-<rect x="220.0" y="224" width="176.50081606961996" height="28" fill="#16a34a"/>
+<rect x="220.0" y="224" width="176.36002826120296" height="28" fill="#16a34a"/>
 <text x="226.0" y="243" class="inside">1.01 MiB</text>
-<rect x="396.50081606962" y="224" width="0.15376824465404884" height="28" fill="#2563eb"/>
-<rect x="396.654584314274" y="224" width="115.38010222567506" height="28" fill="#f59e0b"/>
-<text x="402.654584314274" y="243" class="inside">677.1 KiB</text>
-<rect x="512.0346865399491" y="224" width="1.5005717121705178" height="28" fill="#8b5cf6"/>
-<rect x="513.5352582521197" y="224" width="0.3844206116351221" height="28" fill="#94a3b8"/>
-<text x="521.9196788637548" y="243" class="total">1.68 MiB (37.2%)</text>
+<rect x="396.36002826120296" y="224" width="0.15376824465404884" height="28" fill="#2563eb"/>
+<rect x="396.513796505857" y="224" width="115.36395988830337" height="28" fill="#f59e0b"/>
+<text x="402.513796505857" y="243" class="inside">677.0 KiB</text>
+<rect x="511.8777563941604" y="224" width="1.5005717121705178" height="28" fill="#8b5cf6"/>
+<rect x="513.3783281063309" y="224" width="0.3844206116351221" height="28" fill="#94a3b8"/>
+<text x="521.762748717966" y="243" class="total">1.68 MiB (37.2%)</text>
 <line x1="40" y1="285" x2="1120" y2="285" stroke="#e5e7eb"/>
 <text x="40" y="313" class="dataset">FineWeb 10BT</text>
 <text x="148" y="349" class="variant">OSS</text>
@@ -51,13 +51,13 @@
 <text x="1018.0" y="349" class="total">3.79 MiB (100.0%)</text>
 <text x="148" y="393" class="variant">Modular</text>
 <rect x="220" y="374" width="0.0" height="28" fill="#dc2626"/>
-<rect x="220.0" y="374" width="73.90397199514689" height="28" fill="#16a34a"/>
-<text x="226.0" y="393" class="inside">362.9 KiB</text>
-<rect x="293.9039719951469" y="374" width="0.03580165881019154" height="28" fill="#2563eb"/>
-<rect x="293.9397736539571" y="374" width="31.25803051096923" height="28" fill="#f59e0b"/>
-<rect x="325.1978041649263" y="374" width="0.14002426556874914" height="28" fill="#8b5cf6"/>
-<rect x="325.33782843049505" y="374" width="0.4387692185293474" height="28" fill="#94a3b8"/>
-<text x="333.7765976490244" y="393" class="total">519.3 KiB (13.4%)</text>
+<rect x="220.0" y="374" width="73.86160669888815" height="28" fill="#16a34a"/>
+<text x="226.0" y="393" class="inside">362.7 KiB</text>
+<rect x="293.8616066988882" y="374" width="0.03580165881019154" height="28" fill="#2563eb"/>
+<rect x="293.8974083576984" y="374" width="31.238737394832626" height="28" fill="#f59e0b"/>
+<rect x="325.13614575253104" y="374" width="0.14002426556874914" height="28" fill="#8b5cf6"/>
+<rect x="325.2761700180998" y="374" width="0.4387692185293474" height="28" fill="#94a3b8"/>
+<text x="333.7149392366291" y="393" class="total">519.0 KiB (13.4%)</text>
 <line x1="40" y1="435" x2="1120" y2="435" stroke="#e5e7eb"/>
 <text x="40" y="463" class="dataset">Hacker News</text>
 <text x="148" y="499" class="variant">OSS</text>
@@ -72,14 +72,14 @@
 <text x="1017.9999999999999" y="499" class="total">1.75 MiB (100.0%)</text>
 <text x="148" y="543" class="variant">Modular</text>
 <rect x="220" y="524" width="0.0" height="28" fill="#dc2626"/>
-<rect x="220.0" y="524" width="159.6839476169722" height="28" fill="#16a34a"/>
-<text x="226.0" y="543" class="inside">363.2 KiB</text>
-<rect x="379.6839476169722" y="524" width="0.11333932563753371" height="28" fill="#2563eb"/>
-<rect x="379.79728694260973" y="524" width="95.21147326993953" height="28" fill="#f59e0b"/>
-<text x="385.79728694260973" y="543" class="inside">216.6 KiB</text>
-<rect x="475.00876021254925" y="524" width="1.2785019384415734" height="28" fill="#8b5cf6"/>
-<rect x="476.28726215099084" y="524" width="0.9638135835464514" height="28" fill="#94a3b8"/>
-<text x="485.25107573453727" y="543" class="total">585.2 KiB (32.6%)</text>
+<rect x="220.0" y="524" width="159.5680323975702" height="28" fill="#16a34a"/>
+<text x="226.0" y="543" class="inside">363.0 KiB</text>
+<rect x="379.56803239757016" y="524" width="0.11333932563753371" height="28" fill="#2563eb"/>
+<rect x="379.6813717232077" y="524" width="95.16982965408029" height="28" fill="#f59e0b"/>
+<text x="385.6813717232077" y="543" class="inside">216.5 KiB</text>
+<rect x="474.85120137728796" y="524" width="1.2785019384415734" height="28" fill="#8b5cf6"/>
+<rect x="476.12970331572956" y="524" width="0.9638135835464514" height="28" fill="#94a3b8"/>
+<text x="485.093516899276" y="543" class="total">584.8 KiB (32.5%)</text>
 <line x1="40" y1="585" x2="1120" y2="585" stroke="#e5e7eb"/>
 <text x="40" y="613" class="dataset">Yellow Taxi</text>
 <text x="148" y="649" class="variant">OSS</text>
@@ -96,13 +96,13 @@
 <text x="1018.0" y="649" class="total">10.9 KiB (100.0%)</text>
 <text x="148" y="693" class="variant">Modular</text>
 <rect x="220" y="674" width="0.0" height="28" fill="#dc2626"/>
-<rect x="220.0" y="674" width="188.62201212986088" height="28" fill="#16a34a"/>
-<text x="226.0" y="693" class="inside">2.6 KiB</text>
-<rect x="408.6220121298609" y="674" width="31.918480199785943" height="28" fill="#2563eb"/>
-<rect x="440.54049232964684" y="674" width="103.92882625758116" height="28" fill="#f59e0b"/>
-<text x="446.54049232964684" y="693" class="inside">1.4 KiB</text>
-<rect x="544.469318587228" y="674" width="117.24580806278986" height="28" fill="#8b5cf6"/>
-<text x="550.469318587228" y="693" class="inside">1.6 KiB</text>
-<rect x="661.7151266500179" y="674" width="7.609703888690689" height="28" fill="#94a3b8"/>
-<text x="677.3248305387085" y="693" class="total">6.2 KiB (56.9%)</text>
+<rect x="220.0" y="674" width="159.80378166250446" height="28" fill="#16a34a"/>
+<text x="226.0" y="693" class="inside">2.2 KiB</text>
+<rect x="379.80378166250443" y="674" width="31.918480199785943" height="28" fill="#2563eb"/>
+<rect x="411.7222618622904" y="674" width="97.6578665715305" height="28" fill="#f59e0b"/>
+<text x="417.7222618622904" y="693" class="inside">1.4 KiB</text>
+<rect x="509.3801284338209" y="674" width="117.24580806278986" height="28" fill="#8b5cf6"/>
+<text x="515.3801284338209" y="693" class="inside">1.6 KiB</text>
+<rect x="626.6259364966107" y="674" width="7.609703888690689" height="28" fill="#94a3b8"/>
+<text x="642.2356403853014" y="693" class="total">5.7 KiB (52.4%)</text>
 </svg>

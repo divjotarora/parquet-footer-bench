@@ -18,8 +18,8 @@
 <text x="892.1146234451704" y="195" class="value">3.89 MiB (86.0%)</text>
 <rect x="205" y="208" width="601.8568975367084" height="22" rx="3" fill="#16a34a"/>
 <text x="814.8568975367084" y="224" class="value">3.45 MiB (76.2%)</text>
-<rect x="205" y="237" width="293.9196788637547" height="22" rx="3" fill="#9333ea"/>
-<text x="506.9196788637547" y="253" class="value">1.68 MiB (37.2%)</text>
+<rect x="205" y="237" width="293.762748717966" height="22" rx="3" fill="#9333ea"/>
+<text x="506.762748717966" y="253" class="value">1.68 MiB (37.2%)</text>
 <line x1="40" y1="275" x2="1080" y2="275" stroke="#e5e7eb"/>
 <text x="40" y="320" class="dataset">FineWeb 10BT</text>
 <rect x="205" y="295" width="790.0" height="22" rx="3" fill="#64748b"/>
@@ -28,8 +28,8 @@
 <text x="985.056606400541" y="340" class="value">3.70 MiB (97.7%)</text>
 <rect x="205" y="353" width="280.0618573104998" height="22" rx="3" fill="#16a34a"/>
 <text x="493.0618573104998" y="369" class="value">1.34 MiB (35.5%)</text>
-<rect x="205" y="382" width="105.77659764902441" height="22" rx="3" fill="#9333ea"/>
-<text x="318.77659764902444" y="398" class="value">519.3 KiB (13.4%)</text>
+<rect x="205" y="382" width="105.71493923662908" height="22" rx="3" fill="#9333ea"/>
+<text x="318.7149392366291" y="398" class="value">519.0 KiB (13.4%)</text>
 <line x1="40" y1="420" x2="1080" y2="420" stroke="#e5e7eb"/>
 <text x="40" y="465" class="dataset">Hacker News</text>
 <rect x="205" y="440" width="790.0" height="22" rx="3" fill="#64748b"/>
@@ -38,8 +38,8 @@
 <text x="942.1934517954631" y="485" class="value">1.62 MiB (92.3%)</text>
 <rect x="205" y="498" width="508.18477201166434" height="22" rx="3" fill="#16a34a"/>
 <text x="721.1847720116643" y="514" class="value">1.13 MiB (64.3%)</text>
-<rect x="205" y="527" width="257.2510757345373" height="22" rx="3" fill="#9333ea"/>
-<text x="470.2510757345373" y="543" class="value">585.2 KiB (32.6%)</text>
+<rect x="205" y="527" width="257.09351689927604" height="22" rx="3" fill="#9333ea"/>
+<text x="470.09351689927604" y="543" class="value">584.8 KiB (32.5%)</text>
 <line x1="40" y1="565" x2="1080" y2="565" stroke="#e5e7eb"/>
 <text x="40" y="610" class="dataset">Yellow Taxi</text>
 <rect x="205" y="585" width="790.0" height="22" rx="3" fill="#64748b"/>
@@ -48,6 +48,6 @@
 <text x="910.5561897966464" y="630" class="value">9.7 KiB (88.3%)</text>
 <rect x="205" y="643" width="599.7574027827328" height="22" rx="3" fill="#16a34a"/>
 <text x="812.7574027827328" y="659" class="value">8.3 KiB (75.9%)</text>
-<rect x="205" y="672" width="449.3248305387085" height="22" rx="3" fill="#9333ea"/>
-<text x="662.3248305387085" y="688" class="value">6.2 KiB (56.9%)</text>
+<rect x="205" y="672" width="414.23564038530145" height="22" rx="3" fill="#9333ea"/>
+<text x="627.2356403853014" y="688" class="value">5.7 KiB (52.4%)</text>
 </svg>
