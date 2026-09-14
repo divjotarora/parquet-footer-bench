@@ -225,7 +225,7 @@ class Writer {
   int16_t last_id_ = 0;
 };
 
-// ------------------------------------------------- ArrayPage emitters
+// ------------------------------------------------- EncodedArray emitters
 static int Width(uint64_t maxval) { return pfb::BitWidth(maxval); }
 static uint64_t Max(const std::vector<uint64_t>& v) {
   uint64_t m = 0;
@@ -233,60 +233,54 @@ static uint64_t Max(const std::vector<uint64_t>& v) {
   return m;
 }
 
-// Write the ArrayEncodingParameters union body for BITSET.
-static void BitsetParams(Writer& w, int width, int32_t num_present) {
-  w.Field(4, T_STRUCT);
-  int16_t s = w.StructBegin();
-  w.Field(1, T_STRUCT);                  // union member 1: bitset
-  int16_t s2 = w.StructBegin();
-  w.Field(1, T_I8); w.I8(static_cast<int8_t>(width));
-  w.Field(2, T_I32); w.I32(num_present);
-  w.Stop(); w.StructEnd(s2);
-  w.Stop(); w.StructEnd(s);
-}
-static void PresentIndexParams(Writer& w, int32_t num_present, int wpos, int wval) {
-  w.Field(4, T_STRUCT);
-  int16_t s = w.StructBegin();
-  w.Field(2, T_STRUCT);                  // union member 2: present_index
-  int16_t s2 = w.StructBegin();
-  w.Field(1, T_I32); w.I32(num_present);
-  w.Field(2, T_I8); w.I8(static_cast<int8_t>(wpos));
-  w.Field(3, T_I8); w.I8(static_cast<int8_t>(wval));
-  w.Stop(); w.StructEnd(s2);
-  w.Stop(); w.StructEnd(s);
+// Append an unsigned LEB128 varint to a raw byte string (num_present in `presence`).
+static void Uleb(std::string& s, uint64_t v) {
+  while (v >= 0x80) { s.push_back(static_cast<char>((v & 0x7F) | 0x80)); v >>= 7; }
+  s.push_back(static_cast<char>(v));
 }
 
-// Dense BITSET integer ArrayPage: every position present (no bitmap).
+// EncodedArray field ids: 1 num_values, 2 values, 3 encoding (omit for BITSET), 4 presence.
+// Parameters (widths, counts) live inline in the byte blobs, not as Thrift fields.
+
+// Dense BITSET integer/boolean EncodedArray: every position present.
+//   num_values = N; values = [u8 value_bit_width] ++ PackBits(vals). encoding & presence omitted.
 static void PutIntDense(Writer& w, int16_t fid, const std::vector<uint64_t>& vals) {
   int width = Width(Max(vals));
-  std::string data = pfb::PackBits(vals, width);
+  std::string values(1, static_cast<char>(width));
+  values += pfb::PackBits(vals, width);
   w.Field(fid, T_STRUCT);
   int16_t s = w.StructBegin();
-  w.Binary(1, data);
-  w.Field(2, T_I32); w.I32(ENC_BITSET);
-  w.Field(3, T_I32); w.I32(static_cast<int32_t>(vals.size()));
-  BitsetParams(w, width, static_cast<int32_t>(vals.size()));
+  w.Field(1, T_I32); w.I32(static_cast<int32_t>(vals.size()));  // num_values
+  w.Binary(2, values);                                          // values
   w.Stop(); w.StructEnd(s);
 }
 
-// PRESENT_INDEX integer ArrayPage: [packed positions][packed values].
+// PRESENT_INDEX integer EncodedArray.
+//   values   = [u8 value_bit_width] ++ PackBits(values)
+//   presence = ULEB128(num_present) ++ [u8 position_bit_width] ++ PackBits(positions)
 static void PutIntSparse(Writer& w, int16_t fid, int32_t domain,
                          const std::vector<uint64_t>& positions,
                          const std::vector<uint64_t>& values) {
   int wpos = Width(domain > 0 ? static_cast<uint64_t>(domain - 1) : 0);
   int wval = Width(Max(values));
-  std::string data = pfb::PackBits(positions, wpos) + pfb::PackBits(values, wval);
+  std::string vblob(1, static_cast<char>(wval));
+  vblob += pfb::PackBits(values, wval);
+  std::string pblob;
+  Uleb(pblob, positions.size());
+  pblob.push_back(static_cast<char>(wpos));
+  pblob += pfb::PackBits(positions, wpos);
   w.Field(fid, T_STRUCT);
   int16_t s = w.StructBegin();
-  w.Binary(1, data);
-  w.Field(2, T_I32); w.I32(ENC_PRESENT_INDEX);
-  w.Field(3, T_I32); w.I32(domain);
-  PresentIndexParams(w, static_cast<int32_t>(positions.size()), wpos, wval);
+  w.Field(1, T_I32); w.I32(domain);            // num_values (logical domain, not num_present)
+  w.Binary(2, vblob);                          // values
+  w.Field(3, T_I32); w.I32(ENC_PRESENT_INDEX); // encoding
+  w.Binary(4, pblob);                          // presence
   w.Stop(); w.StructEnd(s);
 }
 
-// PRESENT_INDEX BYTE_ARRAY ArrayPage:
-//   [packed positions][num_present+1 packed cumulative offsets][concatenated bytes]
+// PRESENT_INDEX BYTE_ARRAY EncodedArray.
+//   values   = [u8 offset_bit_width] ++ PackBits(cum[num_present+1]) ++ concatenated bytes
+//   presence = ULEB128(num_present) ++ [u8 position_bit_width] ++ PackBits(positions)
 static void PutBytesSparse(Writer& w, int16_t fid, int32_t domain,
                            const std::vector<uint64_t>& positions,
                            const std::vector<std::string>& values) {
@@ -294,14 +288,19 @@ static void PutBytesSparse(Writer& w, int16_t fid, int32_t domain,
   std::vector<uint64_t> cum(values.size() + 1, 0);
   for (size_t i = 0; i < values.size(); ++i) cum[i + 1] = cum[i] + values[i].size();
   int woff = Width(cum.back());
-  std::string data = pfb::PackBits(positions, wpos) + pfb::PackBits(cum, woff);
-  for (const std::string& v : values) data += v;
+  std::string vblob(1, static_cast<char>(woff));
+  vblob += pfb::PackBits(cum, woff);
+  for (const std::string& v : values) vblob += v;
+  std::string pblob;
+  Uleb(pblob, positions.size());
+  pblob.push_back(static_cast<char>(wpos));
+  pblob += pfb::PackBits(positions, wpos);
   w.Field(fid, T_STRUCT);
   int16_t s = w.StructBegin();
-  w.Binary(1, data);
-  w.Field(2, T_I32); w.I32(ENC_PRESENT_INDEX);
-  w.Field(3, T_I32); w.I32(domain);
-  PresentIndexParams(w, static_cast<int32_t>(positions.size()), wpos, woff);
+  w.Field(1, T_I32); w.I32(domain);            // num_values
+  w.Binary(2, vblob);                          // values
+  w.Field(3, T_I32); w.I32(ENC_PRESENT_INDEX); // encoding
+  w.Binary(4, pblob);                          // presence
   w.Stop(); w.StructEnd(s);
 }
 

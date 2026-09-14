@@ -129,30 +129,19 @@ struct DenseArray {
   uint64_t At(size_t i) const { return pfb::ExtractBits(data, i, value_bit_width); }
 };
 
-// Decode an ArrayPage struct (cursor at struct start). Only the dense-BITSET shape
-// this module uses is needed: data (1), num_values (3), parameters.bitset.value_bit_width.
+// Decode an EncodedArray struct (cursor at struct start). Only the dense-BITSET shape
+// this module uses is needed: num_values (1), values (2) = [u8 value_bit_width][packed].
 DenseArray ReadDenseArray(Reader& r) {
   DenseArray a;
   int16_t s = r.StructBegin();
   for (Reader::Field f = r.NextField(); f.type != T_STOP; f = r.NextField()) {
-    if (f.id == 1 && f.type == T_BINARY) {
-      uint32_t n; a.data = reinterpret_cast<const uint8_t*>(r.BinarySpan(&n));
-    } else if (f.id == 3 && f.type == T_I32) {
-      a.num_values = r.I32();
-    } else if (f.id == 4 && f.type == T_STRUCT) {   // ArrayEncodingParameters union
-      int16_t s2 = r.StructBegin();
-      for (Reader::Field g = r.NextField(); g.type != T_STOP; g = r.NextField()) {
-        if (g.id == 1 && g.type == T_STRUCT) {      // bitset
-          int16_t s3 = r.StructBegin();
-          for (Reader::Field h = r.NextField(); h.type != T_STOP; h = r.NextField()) {
-            if (h.id == 1 && h.type == T_I8) a.value_bit_width = r.Byte();
-            else r.Skip(h.type);
-          }
-          r.StructEnd(s3);
-        } else r.Skip(g.type);
-      }
-      r.StructEnd(s2);
-    } else r.Skip(f.type);
+    if (f.id == 1 && f.type == T_I32) {
+      a.num_values = r.I32();                               // num_values
+    } else if (f.id == 2 && f.type == T_BINARY) {           // values = [u8 width][packed]
+      uint32_t n; const uint8_t* d = reinterpret_cast<const uint8_t*>(r.BinarySpan(&n));
+      a.value_bit_width = n > 0 ? d[0] : 0;
+      a.data = d + 1;
+    } else r.Skip(f.type);                                  // encoding(3)/presence(4) ignored
   }
   r.StructEnd(s);
   return a;

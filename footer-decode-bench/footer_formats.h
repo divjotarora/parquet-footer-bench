@@ -88,8 +88,8 @@ enum {  // ModularFooter
   PLACE_DATA_PAGE_OFFSETS = 1, PLACE_TOTAL_COMPRESSED = 4,
   CS_NULL_COUNTS = 1, CS_MINMAX_PREFIXES = 2, CS_MIN_SUFFIXES = 3, CS_MAX_SUFFIXES = 4,
   RGS_COLUMN_OFFSETS = 1,
-  AP_DATA = 1, AP_PARAMS = 4, PARAMS_BITSET = 1, PARAMS_PRESENT_INDEX = 2,
-  BITSET_WIDTH = 1, PI_NUM_PRESENT = 1, PI_POS_WIDTH = 2, PI_VAL_WIDTH = 3,
+  // EncodedArray field ids: 1 num_values, 2 values, 3 encoding, 4 presence.
+  EA_NUM_VALUES = 1, EA_VALUES = 2, EA_ENCODING = 3, EA_PRESENCE = 4,
 };
 
 // The common interface. C x G = the chunk grid; a projection is a per-column mask.
@@ -303,70 +303,64 @@ class IndexResolver : public Resolver {
 };
 
 // ============================================================== modular decode
-// A parsed ArrayPage: the packed bytes as a Span into the modular buffer (no
-// copy) plus encoding params. ExtractBits over-reads up to 9 bytes past the last
-// bit, which stays inside the buffer -- the packed arrays are always followed by
-// more modules / the root / the trailer -- and the over-read bits are masked off.
-struct ArrayPage { Span data; int encoding = -1; int np = 0; int wpos = 0; int wval = 0; };
+// A parsed EncodedArray. `values` = [u8 width][packed values...]; `presence` is
+// empty for a dense BITSET, else [ULEB128 num_present][u8 pos_width][packed positions].
+// The element type (int vs bytes) is implied by the field, as in the spec. ExtractBits
+// over-reads up to 9 bytes past the last bit, which stays inside the buffer (packed
+// arrays are always followed by more modules / the root / the trailer).
+struct ArrayPage { Span values; Span presence; int encoding = 0; int num_values = 0; };
 inline ArrayPage ParseArrayPage(Reader& r) {
   ArrayPage ap;
   int16_t s = r.StructBegin();
   for (Reader::Field f = r.NextField(); f.type != T_STOP; f = r.NextField()) {
-    if (f.id == AP_DATA && f.type == T_BINARY) {
-      ap.data = r.BinarySpan();
-    } else if (f.id == 2 && f.type == T_I32) {
-      ap.encoding = r.I32();
-    } else if (f.id == AP_PARAMS && f.type == T_STRUCT) {
-      int16_t s2 = r.StructBegin();
-      for (Reader::Field g = r.NextField(); g.type != T_STOP; g = r.NextField()) {
-        if (g.id == PARAMS_BITSET && g.type == T_STRUCT) {
-          int16_t s3 = r.StructBegin();
-          for (Reader::Field h = r.NextField(); h.type != T_STOP; h = r.NextField()) {
-            if (h.id == BITSET_WIDTH) ap.wval = r.U8();
-            else if (h.id == 2) ap.np = r.I32();
-            else r.Skip(h.type);
-          }
-          r.StructEnd(s3);
-        } else if (g.id == PARAMS_PRESENT_INDEX && g.type == T_STRUCT) {
-          int16_t s3 = r.StructBegin();
-          for (Reader::Field h = r.NextField(); h.type != T_STOP; h = r.NextField()) {
-            if (h.id == PI_NUM_PRESENT) ap.np = r.I32();
-            else if (h.id == PI_POS_WIDTH) ap.wpos = r.U8();
-            else if (h.id == PI_VAL_WIDTH) ap.wval = r.U8();
-            else r.Skip(h.type);
-          }
-          r.StructEnd(s3);
-        } else r.Skip(g.type);
-      }
-      r.StructEnd(s2);
-    } else {
-      r.Skip(f.type);
-    }
+    if (f.id == 1 && f.type == T_I32) ap.num_values = r.I32();
+    else if (f.id == 2 && f.type == T_BINARY) ap.values = r.BinarySpan();
+    else if (f.id == 3 && f.type == T_I32) ap.encoding = r.I32();       // omitted => BITSET (0)
+    else if (f.id == 4 && f.type == T_BINARY) ap.presence = r.BinarySpan();
+    else r.Skip(f.type);
   }
   r.StructEnd(s);
   return ap;
 }
+// value/offset width is the first byte of `values`; the packed stream follows it.
+inline int APWidth(const ArrayPage& ap) {
+  return ap.values.size > 0 ? static_cast<uint8_t>(ap.values.data[0]) : 0;
+}
+inline const uint8_t* APData(const ArrayPage& ap) {
+  return reinterpret_cast<const uint8_t*>(ap.values.data) + 1;
+}
+// Decode `presence` = [ULEB128 num_present][u8 pos_width][packed positions].
+struct APPresence { int np; int wpos; const uint8_t* pos; };
+inline APPresence ParsePresence(const ArrayPage& ap) {
+  const uint8_t* p = reinterpret_cast<const uint8_t*>(ap.presence.data);
+  uint64_t np = 0; int shift = 0;
+  for (;;) { uint8_t b = *p++; np |= static_cast<uint64_t>(b & 0x7F) << shift; if (!(b & 0x80)) break; shift += 7; }
+  int wpos = *p++;
+  return {static_cast<int>(np), wpos, p};
+}
+// Dense BITSET: value i read directly from the packed value stream.
 inline int64_t BitsetAt(const ArrayPage& ap, size_t i) {
-  return static_cast<int64_t>(ExtractBits(reinterpret_cast<const uint8_t*>(ap.data.data), i, ap.wval));
+  return static_cast<int64_t>(ExtractBits(APData(ap), i, APWidth(ap)));
 }
 inline void PresentInt(const ArrayPage& ap, int G, std::vector<char>& has, std::vector<int64_t>& val) {
-  const uint8_t* d = reinterpret_cast<const uint8_t*>(ap.data.data);
-  const uint8_t* vd = d + (static_cast<size_t>(ap.np) * ap.wpos + 7) / 8;
-  for (int i = 0; i < ap.np; ++i) {
-    int p = static_cast<int>(ExtractBits(d, i, ap.wpos));
-    if (p >= 0 && p < G) { has[p] = 1; val[p] = static_cast<int64_t>(ExtractBits(vd, i, ap.wval)); }
+  APPresence pr = ParsePresence(ap);
+  int wval = APWidth(ap);
+  const uint8_t* vd = APData(ap);
+  for (int i = 0; i < pr.np; ++i) {
+    int p = static_cast<int>(ExtractBits(pr.pos, i, pr.wpos));
+    if (p >= 0 && p < G) { has[p] = 1; val[p] = static_cast<int64_t>(ExtractBits(vd, i, wval)); }
   }
 }
 // Fill has[G]/out[G] with spans into the modular buffer (no copy).
 inline void PresentBytes(const ArrayPage& ap, int G, std::vector<char>& has, std::vector<Span>& out) {
-  const uint8_t* d = reinterpret_cast<const uint8_t*>(ap.data.data);
-  size_t pos_bytes = (static_cast<size_t>(ap.np) * ap.wpos + 7) / 8;
-  const uint8_t* cd = d + pos_bytes;
-  size_t cum_bytes = ((static_cast<size_t>(ap.np) + 1) * ap.wval + 7) / 8;
-  const char* bytes = ap.data.data + pos_bytes + cum_bytes;
-  for (int i = 0; i < ap.np; ++i) {
-    int p = static_cast<int>(ExtractBits(d, i, ap.wpos));
-    uint64_t c0 = ExtractBits(cd, i, ap.wval), c1 = ExtractBits(cd, i + 1, ap.wval);
+  APPresence pr = ParsePresence(ap);
+  int woff = APWidth(ap);
+  const uint8_t* cd = APData(ap);                                       // packed cumulative offsets (np+1)
+  size_t cum_bytes = ((static_cast<size_t>(pr.np) + 1) * woff + 7) / 8;
+  const char* bytes = ap.values.data + 1 + cum_bytes;                  // concatenated bytes after offsets
+  for (int i = 0; i < pr.np; ++i) {
+    int p = static_cast<int>(ExtractBits(pr.pos, i, pr.wpos));
+    uint64_t c0 = ExtractBits(cd, i, woff), c1 = ExtractBits(cd, i + 1, woff);
     if (p >= 0 && p < G) { has[p] = 1; out[p] = {bytes + c0, static_cast<uint32_t>(c1 - c0)}; }
   }
 }

@@ -92,21 +92,12 @@ Dense ReadDense(Reader& r) {
   Dense a;
   int16_t s = r.StructBegin();
   for (Reader::Field f = r.NextField(); f.type != T_STOP; f = r.NextField()) {
-    if (f.id == 1 && f.type == T_BINARY) { Span sp = r.BinarySpan(); a.data = reinterpret_cast<const uint8_t*>(sp.data); }
-    else if (f.id == 3 && f.type == T_I32) a.n = r.I32();
-    else if (f.id == 4 && f.type == T_STRUCT) {           // ArrayEncodingParameters
-      int16_t s2 = r.StructBegin();
-      for (Reader::Field g = r.NextField(); g.type != T_STOP; g = r.NextField()) {
-        if (g.id == 1 && g.type == T_STRUCT) {             // bitset
-          int16_t s3 = r.StructBegin();
-          for (Reader::Field h = r.NextField(); h.type != T_STOP; h = r.NextField()) {
-            if (h.id == 1 && h.type == T_I8) a.width = r.U8(); else r.Skip(h.type);
-          }
-          r.StructEnd(s3);
-        } else r.Skip(g.type);
-      }
-      r.StructEnd(s2);
-    } else r.Skip(f.type);
+    if (f.id == 1 && f.type == T_I32) a.n = r.I32();                  // num_values
+    else if (f.id == 2 && f.type == T_BINARY) {                       // values = [u8 width][packed]
+      Span sp = r.BinarySpan();
+      a.width = sp.size > 0 ? static_cast<uint8_t>(sp.data[0]) : 0;
+      a.data = reinterpret_cast<const uint8_t*>(sp.data) + 1;
+    } else r.Skip(f.type);                                            // encoding(3)/presence(4) ignored
   }
   r.StructEnd(s);
   return a;
