@@ -135,11 +135,13 @@ struct SchemaModule {
 }
 
 /**
- * Placement for every column chunk.
+ * Placement for every column chunk, plus the per-row-group row counts.
  *
  * Unless noted otherwise, arrays hold num_columns * num_row_groups UINT64 values in column-major
  * chunk space: chunk (column c, row group g) is at c * num_row_groups + g. Every column chunk has a
- * value, so these required arrays use the fully-present (dense) case of BITSET.
+ * value, so these required arrays use the fully-present (dense) case of BITSET. Two arrays use a
+ * different logical domain, noted on the field: physical_types is one entry per leaf column, and
+ * row_group_num_rows is one entry per row group.
  */
 struct PlacementModule {
   /** UINT64: first data-page byte offset. */
@@ -159,7 +161,9 @@ struct PlacementModule {
   /** UINT32: parquet.Type value; num_columns entries, one per leaf column. */
   8: required EncodedArray physical_types,
   /** BOOLEAN: true when every data page in the column chunk is dictionary encoded. */
-  9: required EncodedArray is_fully_dictionary_encoded
+  9: required EncodedArray is_fully_dictionary_encoded,
+  /** UINT64: row count in each row group; num_row_groups entries, one per row group. */
+  10: required EncodedArray row_group_num_rows
 }
 
 /**
@@ -345,6 +349,5 @@ struct ModularFooter {
   2: required i32 num_row_groups,
   3: required i32 num_columns,
   4: required i64 num_rows,
-  5: required list<i64> row_group_num_rows,
-  6: required list<ModuleDirectoryEntry> modules
+  5: required list<ModuleDirectoryEntry> modules
 }

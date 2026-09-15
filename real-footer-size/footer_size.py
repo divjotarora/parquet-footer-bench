@@ -248,9 +248,12 @@ def modular_breakdown(path, converter, suffix_limit):
     stats = modules.get("row_group_stats")
     if stats is not None:
         preceding_end = max(
-            module["offset"] + module["length"]
-            for name, module in modules.items()
-            if module["offset"] < stats["offset"] and name != "row_group_stats"
+            (
+                module["offset"] + module["length"]
+                for name, module in modules.items()
+                if module["offset"] < stats["offset"] and name != "row_group_stats"
+            ),
+            default=0,
         )
         statistics = stats["offset"] + stats["length"] - preceding_end
     other = measured["bytes"] - schema - placement - statistics - key_value_metadata

@@ -67,6 +67,12 @@
 // root_offset is relative to modular_start, just like module offsets in the
 // root directory. Without --full-file, the existing metadata-only MFT1 format
 // is retained.
+//
+// Core footer sections are ordered from low offsets toward the tail as:
+//
+//   [statistics][statistics directory][placement][schema][ModularFooter root]
+//
+// This puts the most important sections closest to the tail.
 
 #include <algorithm>
 #include <cstdint>
@@ -858,7 +864,10 @@ int main(int argc, char** argv) {
 
     // ---- placement, column-major: chunk (column c, row group g) is at c*G + g.
     std::vector<uint64_t> dpo(N), tcs(N), tus(N), nv(N), cod(N), fdict_flag(N, 0);
+    std::vector<uint64_t> row_group_num_rows(G);
     std::vector<uint64_t> ptypes(C), first_dict(N + 1, 0), dict_off;
+    for (int g = 0; g < G; ++g)
+      row_group_num_rows[g] = static_cast<uint64_t>(fm.row_groups[g].num_rows);
     for (int c = 0; c < C; ++c) {
       ptypes[c] = static_cast<uint64_t>(fm.row_groups[0].columns[c].type);
       for (int g = 0; g < G; ++g) {
@@ -886,6 +895,7 @@ int main(int argc, char** argv) {
     PutIntDense(placement, 7, cod);
     PutIntDense(placement, 8, ptypes);
     PutIntDense(placement, 9, fdict_flag);  // is_fully_dictionary_encoded
+    PutIntDense(placement, 10, row_group_num_rows);
     placement.Stop();
 
     // ---- schema: copy the parsed list<SchemaElement> verbatim under field 1.
@@ -923,7 +933,11 @@ int main(int argc, char** argv) {
       if (!col_desc[c].empty()) have_stats = true;
     }
 
-    // ---- lay out the output and collect the directory.
+    // ---- Lay out the output and collect the directory. Core sections are
+    // ordered from least to most important so the most important bytes are
+    // closest to the tail: stats payload, stats directory, placement, schema,
+    // and finally the ModularFooter root. Optional supporting modules precede
+    // that core suffix.
     std::string out;
     std::vector<DirEntry> dir;
     auto place = [&](const std::string& blob) {
@@ -931,26 +945,6 @@ int main(int argc, char** argv) {
       out.append(blob);
       return off;
     };
-    dir.push_back({K_SCHEMA, place(schema.bytes()), static_cast<int64_t>(schema.bytes().size())});
-    if (have_schema_index)  // near the schema: a name-resolving reader fetches both
-      dir.push_back({K_SCHEMA_INDEX, place(schema_index), static_cast<int64_t>(schema_index.size())});
-    dir.push_back({K_PLACEMENT, place(placement.bytes()), static_cast<int64_t>(placement.bytes().size())});
-    if (have_filemeta)
-      dir.push_back({K_FILE_METADATA, place(filemeta.bytes()), static_cast<int64_t>(filemeta.bytes().size())});
-    if (have_stats) {
-      std::vector<uint64_t> col_off(C + 1, 0);
-      for (int c = 0; c < C; ++c) {
-        col_off[c] = static_cast<uint64_t>(out.size());
-        out.append(col_desc[c]);                 // empty descriptor => col_off[c]==col_off[c+1]
-      }
-      col_off[C] = static_cast<uint64_t>(out.size());
-      Writer rgstats;
-      PutIntDense(rgstats, 1, col_off);           // column_offsets
-      rgstats.Stop();
-      dir.push_back({K_ROW_GROUP_STATISTICS, place(rgstats.bytes()),
-                     static_cast<int64_t>(rgstats.bytes().size())});
-    }
-
     // ---- page index (optional): only when --page-index is set AND the data is
     // actually reachable in the input -- a full file whose page-index byte ranges
     // lie before the footer. A bare tail, or a file without a page index, emits
@@ -985,15 +979,39 @@ int main(int argc, char** argv) {
       build_index(true, K_COLUMN_INDEX);
     }
 
+    if (have_filemeta)
+      dir.push_back({K_FILE_METADATA, place(filemeta.bytes()),
+                     static_cast<int64_t>(filemeta.bytes().size())});
+    if (have_schema_index)
+      dir.push_back({K_SCHEMA_INDEX, place(schema_index),
+                     static_cast<int64_t>(schema_index.size())});
+
+    if (have_stats) {
+      std::vector<uint64_t> col_off(C + 1, 0);
+      for (int c = 0; c < C; ++c) {
+        col_off[c] = static_cast<uint64_t>(out.size());
+        out.append(col_desc[c]);                 // empty descriptor => col_off[c]==col_off[c+1]
+      }
+      col_off[C] = static_cast<uint64_t>(out.size());
+      Writer rgstats;
+      PutIntDense(rgstats, 1, col_off);           // column_offsets
+      rgstats.Stop();
+      dir.push_back({K_ROW_GROUP_STATISTICS, place(rgstats.bytes()),
+                     static_cast<int64_t>(rgstats.bytes().size())});
+    }
+
+    dir.push_back({K_PLACEMENT, place(placement.bytes()),
+                   static_cast<int64_t>(placement.bytes().size())});
+    dir.push_back({K_SCHEMA, place(schema.bytes()),
+                   static_cast<int64_t>(schema.bytes().size())});
+
     // ---- ModularFooter directory root, appended last.
     Writer root;
     root.Field(1, T_I32); root.I32(fm.version);
     root.Field(2, T_I32); root.I32(G);
     root.Field(3, T_I32); root.I32(C);
     root.Field(4, T_I64); root.I64(fm.num_rows);
-    root.ListField(5, T_I64, G);
-    for (const RowGroup& rg : fm.row_groups) root.I64(rg.num_rows);
-    root.ListField(6, T_STRUCT, static_cast<int32_t>(dir.size()));
+    root.ListField(5, T_STRUCT, static_cast<int32_t>(dir.size()));
     for (const DirEntry& e : dir) {
       int16_t s = root.StructBegin();
       root.Field(1, T_I32); root.I32(e.kind);

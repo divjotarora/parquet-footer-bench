@@ -195,13 +195,13 @@ int main(int argc, char** argv) {
     }
     const char* base = buf.data() + modular_start;
 
-    // Root directory: field 6 = list<ModuleDirectoryEntry{1:kind, 2:location{1:off,2:len}}>.
+    // Root directory: field 5 = list<ModuleDirectoryEntry{1:kind, 2:location{1:off,2:len}}>.
     int64_t schema_off = -1, si_off = -1, schema_len = 0, si_len = 0;
     {
       Reader r(base + root_off, buf.size() - modular_start - root_off);
       int16_t s = r.StructBegin();
       for (Reader::Field f = r.NextField(); f.type != T_STOP; f = r.NextField()) {
-        if (f.id == 6 && f.type == T_LIST) {
+        if (f.id == 5 && f.type == T_LIST) {
           Reader::ListHdr h = r.List();
           for (int32_t i = 0; i < h.size; ++i) {
             int32_t kind = -1; int64_t off = 0, len = 0;
