@@ -32,11 +32,11 @@ title = sys.argv[1] if len(sys.argv) > 1 else "footer decode: projection sweep"
 lines = [ln.strip() for ln in sys.stdin if ln.strip()]
 rows = [ln.split(",") for ln in lines[1:]]  # skip header
 xs = [int(r[0]) for r in rows]
-header = lines[0].split(",")  # projected,<name>_us,...
+header = lines[0].split(",")  # projected,<name>_us_per_op,...
 palette = {"standard": "#dc2626", "walk": "#64748b", "index": "#2563eb", "modular": "#9333ea"}
 cols = []
 for j, h in enumerate(header[1:], start=1):
-    label = h[:-3] if h.endswith("_us") else h  # strip _us
+    label = h[:-10] if h.endswith("_us_per_op") else h
     color = palette.get(label, "#0891b2")
     disp = "index (jump table)" if label == "index" else label
     cols.append((disp, [float(r[j]) for r in rows], color))
@@ -66,14 +66,14 @@ p.append('<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#17203
          '.title{font-size:20px;font-weight:700}.sub{font-size:13px;fill:#526071}'
          '.ax{font-size:12px;fill:#526071}.leg{font-size:13px;font-weight:600}</style>')
 p.append('<text class="title" x="{}" y="30">Footer decode: resolving placement + stats for a projection</text>'.format(L))
-p.append('<text class="sub" x="{}" y="50">{}  —  us/op vs. projected columns (log-log); same info from each layout</text>'.format(L, html.escape(title)))
+p.append('<text class="sub" x="{}" y="50">{}  —  µs/op vs. projected columns (log-log); same info from each layout</text>'.format(L, html.escape(title)))
 
 # y grid (decades) + labels
 v = ylo
 while v <= yhi + 1e-9:
     y = py(v)
     p.append('<line x1="{}" y1="{:.1f}" x2="{}" y2="{:.1f}" stroke="#e5e9f0"/>'.format(L, y, L + PW, y))
-    lab = ("{:g} ms".format(v / 1000.0)) if v >= 1000 else ("{:g} us".format(v))
+    lab = ("{:g} ms/op".format(v / 1000.0)) if v >= 1000 else ("{:g} µs/op".format(v))
     p.append('<text class="ax" x="{}" y="{:.1f}" text-anchor="end">{}</text>'.format(L - 8, y + 4, lab))
     v *= 10
 
@@ -98,7 +98,7 @@ for name, vals, color in cols:
 # legend (right), with the endpoint value
 lx = L + PW + 30
 ly = T + 10
-p.append('<text class="ax" x="{}" y="{}">resolve  (us/op @ {} / {} cols)</text>'.format(lx, ly - 14, xmin, xmax))
+p.append('<text class="ax" x="{}" y="{}">resolve (µs/op @ {} / {} columns)</text>'.format(lx, ly - 14, xmin, xmax))
 for name, vals, color in cols:
     p.append('<line x1="{}" y1="{:.1f}" x2="{}" y2="{:.1f}" stroke="{}" stroke-width="3"/>'.format(lx, ly, lx + 26, ly, color))
     p.append('<circle cx="{}" cy="{:.1f}" r="3.2" fill="{}"/>'.format(lx + 13, ly, color))

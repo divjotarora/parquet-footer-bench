@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:system-ui,-apple-system,sans-serif;fill:#172033}.title{font-size:20px;font-weight:700}.sub{font-size:13px;fill:#526071}.ax{font-size:12px;fill:#526071}.leg{font-size:13px;font-weight:600}</style>
+<text class="title" x="90" y="30">Footer decode: resolving placement + stats for a projection</text>
+<text class="sub" x="90" y="50">yellow-tripdata-2025-01  —  µs/op vs. projected columns (log-log); same info from each layout</text>
+<line x1="90" y1="490.0" x2="640" y2="490.0" stroke="#e5e9f0"/>
+<text class="ax" x="82" y="494.0" text-anchor="end">0.1 µs/op</text>
+<line x1="90" y1="385.0" x2="640" y2="385.0" stroke="#e5e9f0"/>
+<text class="ax" x="82" y="389.0" text-anchor="end">1 µs/op</text>
+<line x1="90" y1="280.0" x2="640" y2="280.0" stroke="#e5e9f0"/>
+<text class="ax" x="82" y="284.0" text-anchor="end">10 µs/op</text>
+<line x1="90" y1="175.0" x2="640" y2="175.0" stroke="#e5e9f0"/>
+<text class="ax" x="82" y="179.0" text-anchor="end">100 µs/op</text>
+<line x1="90" y1="70.0" x2="640" y2="70.0" stroke="#e5e9f0"/>
+<text class="ax" x="82" y="74.0" text-anchor="end">1 ms/op</text>
+<line x1="90.0" y1="70" x2="90.0" y2="490" stroke="#eef1f6"/>
+<text class="ax" x="90.0" y="510" text-anchor="middle">1</text>
+<line x1="217.3" y1="70" x2="217.3" y2="490" stroke="#eef1f6"/>
+<text class="ax" x="217.3" y="510" text-anchor="middle">2</text>
+<line x1="344.5" y1="70" x2="344.5" y2="490" stroke="#eef1f6"/>
+<text class="ax" x="344.5" y="510" text-anchor="middle">4</text>
+<line x1="471.8" y1="70" x2="471.8" y2="490" stroke="#eef1f6"/>
+<text class="ax" x="471.8" y="510" text-anchor="middle">8</text>
+<line x1="599.0" y1="70" x2="599.0" y2="490" stroke="#eef1f6"/>
+<text class="ax" x="599.0" y="510" text-anchor="middle">16</text>
+<line x1="640.0" y1="70" x2="640.0" y2="490" stroke="#eef1f6"/>
+<text class="ax" x="640.0" y="510" text-anchor="middle">20</text>
+<text class="ax" x="365.0" y="536" text-anchor="middle">projected columns (of 20)</text>
+<line x1="90" y1="70" x2="90" y2="490" stroke="#94a3b8"/>
+<line x1="90" y1="490" x2="640" y2="490" stroke="#94a3b8"/>
+<polyline points="90.0,174.2 217.3,174.8 344.5,174.5 471.8,174.5 599.0,174.4 640.0,174.4" fill="none" stroke="#dc2626" stroke-width="2.5"/>
+<circle cx="90.0" cy="174.2" r="3.2" fill="#dc2626"/>
+<circle cx="217.3" cy="174.8" r="3.2" fill="#dc2626"/>
+<circle cx="344.5" cy="174.5" r="3.2" fill="#dc2626"/>
+<circle cx="471.8" cy="174.5" r="3.2" fill="#dc2626"/>
+<circle cx="599.0" cy="174.4" r="3.2" fill="#dc2626"/>
+<circle cx="640.0" cy="174.4" r="3.2" fill="#dc2626"/>
+<polyline points="90.0,285.5 217.3,286.2 344.5,286.6 471.8,287.7 599.0,290.3 640.0,291.7" fill="none" stroke="#64748b" stroke-width="2.5"/>
+<circle cx="90.0" cy="285.5" r="3.2" fill="#64748b"/>
+<circle cx="217.3" cy="286.2" r="3.2" fill="#64748b"/>
+<circle cx="344.5" cy="286.6" r="3.2" fill="#64748b"/>
+<circle cx="471.8" cy="287.7" r="3.2" fill="#64748b"/>
+<circle cx="599.0" cy="290.3" r="3.2" fill="#64748b"/>
+<circle cx="640.0" cy="291.7" r="3.2" fill="#64748b"/>
+<polyline points="90.0,432.1 217.3,399.5 344.5,368.0 471.8,338.9 599.0,308.7 640.0,298.3" fill="none" stroke="#2563eb" stroke-width="2.5"/>
+<circle cx="90.0" cy="432.1" r="3.2" fill="#2563eb"/>
+<circle cx="217.3" cy="399.5" r="3.2" fill="#2563eb"/>
+<circle cx="344.5" cy="368.0" r="3.2" fill="#2563eb"/>
+<circle cx="471.8" cy="338.9" r="3.2" fill="#2563eb"/>
+<circle cx="599.0" cy="308.7" r="3.2" fill="#2563eb"/>
+<circle cx="640.0" cy="298.3" r="3.2" fill="#2563eb"/>
+<polyline points="90.0,478.4 217.3,450.7 344.5,424.5 471.8,397.5 599.0,368.3 640.0,355.5" fill="none" stroke="#9333ea" stroke-width="2.5"/>
+<circle cx="90.0" cy="478.4" r="3.2" fill="#9333ea"/>
+<circle cx="217.3" cy="450.7" r="3.2" fill="#9333ea"/>
+<circle cx="344.5" cy="424.5" r="3.2" fill="#9333ea"/>
+<circle cx="471.8" cy="397.5" r="3.2" fill="#9333ea"/>
+<circle cx="599.0" cy="368.3" r="3.2" fill="#9333ea"/>
+<circle cx="640.0" cy="355.5" r="3.2" fill="#9333ea"/>
+<polyline points="90.0,420.5 217.3,386.2 344.5,361.6 471.8,345.5 599.0,324.2 640.0,315.8" fill="none" stroke="#0891b2" stroke-width="2.5"/>
+<circle cx="90.0" cy="420.5" r="3.2" fill="#0891b2"/>
+<circle cx="217.3" cy="386.2" r="3.2" fill="#0891b2"/>
+<circle cx="344.5" cy="361.6" r="3.2" fill="#0891b2"/>
+<circle cx="471.8" cy="345.5" r="3.2" fill="#0891b2"/>
+<circle cx="599.0" cy="324.2" r="3.2" fill="#0891b2"/>
+<circle cx="640.0" cy="315.8" r="3.2" fill="#0891b2"/>
+<polyline points="90.0,463.5 217.3,402.7 344.5,370.5 471.8,351.6 599.0,328.2 640.0,319.0" fill="none" stroke="#0891b2" stroke-width="2.5"/>
+<circle cx="90.0" cy="463.5" r="3.2" fill="#0891b2"/>
+<circle cx="217.3" cy="402.7" r="3.2" fill="#0891b2"/>
+<circle cx="344.5" cy="370.5" r="3.2" fill="#0891b2"/>
+<circle cx="471.8" cy="351.6" r="3.2" fill="#0891b2"/>
+<circle cx="599.0" cy="328.2" r="3.2" fill="#0891b2"/>
+<circle cx="640.0" cy="319.0" r="3.2" fill="#0891b2"/>
+<text class="ax" x="670" y="66">resolve (µs/op @ 1 / 20 columns)</text>
+<line x1="670" y1="80.0" x2="696" y2="80.0" stroke="#dc2626" stroke-width="3"/>
+<circle cx="683" cy="80.0" r="3.2" fill="#dc2626"/>
+<text class="leg" x="704" y="84.0" fill="#dc2626">standard</text>
+<text class="ax" x="704" y="100.0">102 → 101</text>
+<line x1="670" y1="126.0" x2="696" y2="126.0" stroke="#64748b" stroke-width="3"/>
+<circle cx="683" cy="126.0" r="3.2" fill="#64748b"/>
+<text class="leg" x="704" y="130.0" fill="#64748b">walk</text>
+<text class="ax" x="704" y="146.0">9 → 8</text>
+<line x1="670" y1="172.0" x2="696" y2="172.0" stroke="#2563eb" stroke-width="3"/>
+<circle cx="683" cy="172.0" r="3.2" fill="#2563eb"/>
+<text class="leg" x="704" y="176.0" fill="#2563eb">index (jump table)</text>
+<text class="ax" x="704" y="192.0">0 → 7</text>
+<line x1="670" y1="218.0" x2="696" y2="218.0" stroke="#9333ea" stroke-width="3"/>
+<circle cx="683" cy="218.0" r="3.2" fill="#9333ea"/>
+<text class="leg" x="704" y="222.0" fill="#9333ea">modular</text>
+<text class="ax" x="704" y="238.0">0 → 2</text>
+<line x1="670" y1="264.0" x2="696" y2="264.0" stroke="#0891b2" stroke-width="3"/>
+<circle cx="683" cy="264.0" r="3.2" fill="#0891b2"/>
+<text class="leg" x="704" y="268.0" fill="#0891b2">page_cold</text>
+<text class="ax" x="704" y="284.0">0 → 5</text>
+<line x1="670" y1="310.0" x2="696" y2="310.0" stroke="#0891b2" stroke-width="3"/>
+<circle cx="683" cy="310.0" r="3.2" fill="#0891b2"/>
+<text class="leg" x="704" y="314.0" fill="#0891b2">page_warm</text>
+<text class="ax" x="704" y="330.0">0 → 4</text>
+</svg>

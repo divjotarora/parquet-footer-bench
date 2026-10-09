@@ -177,5 +177,12 @@ def decode(data):
     return result
 
 
+def decode_prefix(data):
+    """Decode one leading compact-Thrift struct and return it with bytes consumed."""
+    reader = Reader(data)
+    result = reader.struct()
+    return result, reader.offset
+
+
 def encode(fields):
     return write_struct(fields)

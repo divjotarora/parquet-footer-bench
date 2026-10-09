@@ -1,0 +1,6 @@
+dataset,offset_count,encoded_bytes,ns_per_op,million_offsets_per_s,encoded_GB_per_s,decoded_GB_per_s
+Wide 2000x10,64006,93212,36149.7,1770.583,2.579,14.165
+US Accidents,138223,230943,87238.1,1584.434,2.647,12.675
+FineWeb 10BT,18906,50619,11556.3,1635.995,4.380,13.088
+Hacker News,42954,93391,26133.6,1643.630,3.574,13.149
+Yellow Taxi,351,861,224.0,1566.658,3.843,12.533

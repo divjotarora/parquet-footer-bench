@@ -42,6 +42,14 @@ target_include_directories(modular_footer_convert PRIVATE include)
 
 add_executable(jumptable_footer_convert jumptable-footer/parquet_to_jumptable.cc)
 add_executable(footer_decode_bench footer-decode-bench/footer_decode_bench.cc)
+set(PFB_RUNTIME_DBP_LIBRARY "" CACHE FILEPATH "Runtime dbl/parquet DBP bridge shared library")
+if(PFB_RUNTIME_DBP_LIBRARY)
+  target_compile_definitions(footer_decode_bench PRIVATE PFB_HAVE_RUNTIME_DBP=1)
+  target_link_libraries(footer_decode_bench PRIVATE "${PFB_RUNTIME_DBP_LIBRARY}")
+  add_executable(dbp_throughput footer-decode-bench/dbp_throughput.cc)
+  target_compile_definitions(dbp_throughput PRIVATE PFB_HAVE_RUNTIME_DBP=1)
+  target_link_libraries(dbp_throughput PRIVATE "${PFB_RUNTIME_DBP_LIBRARY}")
+endif()
 
 # Name-resolution benchmark (walk the schema vs a persisted name hash) and the wide
 # synthetic-footer generator that feeds it. The bench reads a jump-table footer or a

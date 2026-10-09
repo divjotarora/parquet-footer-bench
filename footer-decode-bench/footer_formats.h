@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -41,6 +42,12 @@
 #include "thrift_codec.h"
 
 namespace fdb {
+
+#ifdef PFB_HAVE_RUNTIME_DBP
+extern "C" int PfbRuntimeDbpDecodeInt64(const uint8_t *data, size_t size,
+                                        int64_t *output, size_t output_capacity,
+                                        size_t *output_size);
+#endif
 
 // Compare two segmented byte values (a1 ++ b1) vs (a2 ++ b2) without materializing.
 inline bool SegEqual(Span a1, Span b1, Span a2, Span b2) {
@@ -74,10 +81,21 @@ struct Loc {
 using Placement = std::vector<Loc>;
 
 // Field ids we navigate.
-enum {  // FileMetaData / RowGroup / ColumnChunk / ColumnMetaData / Statistics
-  FMD_SCHEMA = 2, FMD_ROW_GROUPS = 4, FMD_FOOTER_INDEX_POINTER = 10, RG_COLUMNS = 1,
-  CC_META_DATA = 3, CM_TOTAL_COMPRESSED = 7, CM_DATA_PAGE_OFFSET = 9, CM_STATISTICS = 12,
-  ST_MAX_DEP = 1, ST_MIN_DEP = 2, ST_NULL_COUNT = 3, ST_MAX_VALUE = 5, ST_MIN_VALUE = 6,
+enum { // FileMetaData / RowGroup / ColumnChunk / ColumnMetaData / Statistics
+  FMD_SCHEMA = 2,
+  FMD_ROW_GROUPS = 4,
+  FMD_FOOTER_INDEX_POINTER = 10,
+  RG_COLUMNS = 1,
+  RG_NUM_ROWS = 3,
+  CC_META_DATA = 3,
+  CM_TOTAL_COMPRESSED = 7,
+  CM_DATA_PAGE_OFFSET = 9,
+  CM_STATISTICS = 12,
+  ST_MAX_DEP = 1,
+  ST_MIN_DEP = 2,
+  ST_NULL_COUNT = 3,
+  ST_MAX_VALUE = 5,
+  ST_MIN_VALUE = 6,
 };
 enum {  // FileMetadataFooterIndex (jump table)
   IDX_NUM_LEAF = 1, IDX_NUM_RG = 2, IDX_CHUNK_OFFSETS = 3,
@@ -91,6 +109,24 @@ enum {  // ModularFooter
   // EncodedArray field ids: 1 num_values, 2 values, 3 encoding, 4 presence.
   EA_NUM_VALUES = 1, EA_VALUES = 2, EA_ENCODING = 3, EA_PRESENCE = 4,
 };
+enum { // PageFirstModularFooter
+  PAGE_MOD_DIRECTORY = 4,
+  PAGE_DIR_KIND = 1,
+  PAGE_DIR_REGION = 2,
+  PK_PAGE_DIRECTORY = 1,
+  REGION_MAP_OFFSETS = 1,
+  PAGE_DIRECTORY_REGIONS = 1,
+  COLUMN_PAGE_COUNT = 1,
+  COLUMN_PAGE_REGIONS = 2,
+  COLUMN_PAGE_FIRST_ROWS = 3,
+  COLUMN_FULLY_DICTIONARY = 4,
+  COLUMN_PAGE_CODECS = 5,
+  COLUMN_PAGE_DICTIONARIES = 6,
+  COLUMN_PAGE_NUM_VALUES = 7,
+  COLUMN_PAGE_UNCOMPRESSED_SIZES = 8,
+  PAGE_ARRAY_BITSET = 0,
+  PAGE_ARRAY_DELTA_BINARY_PACKED = 2,
+};
 
 // The common interface. C x G = the chunk grid; a projection is a per-column mask.
 class Resolver {
@@ -98,9 +134,10 @@ class Resolver {
   Resolver(int columns, int row_groups) : C(columns), G(row_groups) {}
   virtual ~Resolver() = default;
   virtual std::string name() const = 0;
-  virtual Placement Resolve(const std::vector<char>& want) const = 0;
+  virtual Placement Resolve(const std::vector<char> &want,
+                            bool include_stats = true) const = 0;
 
- protected:
+protected:
   int C, G;
 };
 
@@ -136,7 +173,7 @@ inline void ReadStatistics(Reader& r, Loc& L) {
   }
 }
 // Decode one ColumnChunk (cursor at the struct start) -> placement + stats.
-inline Loc ReadColumnInfo(Reader& r) {
+inline Loc ReadColumnInfo(Reader &r, bool include_stats = true) {
   Loc L;
   int16_t s = r.StructBegin();
   for (Reader::Field f = r.NextField(); f.type != T_STOP; f = r.NextField()) {
@@ -145,7 +182,8 @@ inline Loc ReadColumnInfo(Reader& r) {
       for (Reader::Field g = r.NextField(); g.type != T_STOP; g = r.NextField()) {
         if (g.id == CM_TOTAL_COMPRESSED) L.size = r.I64();
         else if (g.id == CM_DATA_PAGE_OFFSET) L.off = r.I64();
-        else if (g.id == CM_STATISTICS && g.type == T_STRUCT) ReadStatistics(r, L);
+        else if (g.id == CM_STATISTICS && g.type == T_STRUCT && include_stats)
+          ReadStatistics(r, L);
         else r.Skip(g.type);
       }
       r.StructEnd(s2);
@@ -157,6 +195,38 @@ inline Loc ReadColumnInfo(Reader& r) {
   return L;
 }
 
+inline std::vector<int64_t> ReadRowGroupEnds(const std::string &footer) {
+  std::vector<int64_t> ends;
+  int64_t total = 0;
+  Reader reader(footer.data(), footer.size());
+  for (Reader::Field field = reader.NextField(); field.type != T_STOP;
+       field = reader.NextField()) {
+    if (field.id != FMD_ROW_GROUPS || field.type != T_LIST) {
+      reader.Skip(field.type);
+      continue;
+    }
+    Reader::ListHdr groups = reader.List();
+    ends.reserve(groups.size);
+    for (int32_t group = 0; group < groups.size; ++group) {
+      int64_t rows = -1;
+      int16_t state = reader.StructBegin();
+      for (Reader::Field item = reader.NextField(); item.type != T_STOP;
+           item = reader.NextField()) {
+        if (item.id == RG_NUM_ROWS && item.type == T_I64)
+          rows = reader.I64();
+        else
+          reader.Skip(item.type);
+      }
+      reader.StructEnd(state);
+      if (rows < 0 || rows > std::numeric_limits<int64_t>::max() - total)
+        throw std::runtime_error("invalid row-group row count");
+      total += rows;
+      ends.push_back(total);
+    }
+  }
+  return ends;
+}
+
 // ------- standard: full Thrift materialization (a generated-Thrift reader, e.g.
 // parquet-java's). Decodes the ENTIRE FileMetaData into an owned value tree kept
 // in a member, then points its spans there. Materializes everything regardless
@@ -165,7 +235,8 @@ class StandardResolver : public Resolver {
  public:
   StandardResolver(const std::string& footer, int C, int G) : Resolver(C, G), footer_(footer) {}
   std::string name() const override { return "standard"; }
-  Placement Resolve(const std::vector<char>& want) const override {
+  Placement Resolve(const std::vector<char> &want,
+                    bool include_stats = true) const override {
     Reader r(footer_.data(), footer_.size());
     tree_ = DecodeValue(r, T_STRUCT);  // materialized; stays alive as a member
     std::vector<Loc> grid(static_cast<size_t>(C) * G);
@@ -179,14 +250,25 @@ class StandardResolver : public Resolver {
           if (md) {
             if (const Value* v = md->field(CM_DATA_PAGE_OFFSET)) L.off = v->num;
             if (const Value* v = md->field(CM_TOTAL_COMPRESSED)) L.size = v->num;
-            if (const Value* st = md->field(CM_STATISTICS)) {
-              if (const Value* nc = st->field(ST_NULL_COUNT)) { L.has_null = true; L.null_count = nc->num; }
-              const Value* mn = st->field(ST_MIN_VALUE); if (!mn) mn = st->field(ST_MIN_DEP);
-              const Value* mx = st->field(ST_MAX_VALUE); if (!mx) mx = st->field(ST_MAX_DEP);
-              if (mn && mx) {
-                L.has_mm = true;
-                L.min_a = {mn->bin.data(), static_cast<uint32_t>(mn->bin.size())};
-                L.max_a = {mx->bin.data(), static_cast<uint32_t>(mx->bin.size())};
+            if (include_stats) {
+              if (const Value *st = md->field(CM_STATISTICS)) {
+                if (const Value *nc = st->field(ST_NULL_COUNT)) {
+                  L.has_null = true;
+                  L.null_count = nc->num;
+                }
+                const Value *mn = st->field(ST_MIN_VALUE);
+                if (!mn)
+                  mn = st->field(ST_MIN_DEP);
+                const Value *mx = st->field(ST_MAX_VALUE);
+                if (!mx)
+                  mx = st->field(ST_MAX_DEP);
+                if (mn && mx) {
+                  L.has_mm = true;
+                  L.min_a = {mn->bin.data(),
+                             static_cast<uint32_t>(mn->bin.size())};
+                  L.max_a = {mx->bin.data(),
+                             static_cast<uint32_t>(mx->bin.size())};
+                }
               }
             }
           }
@@ -208,7 +290,8 @@ class WalkResolver : public Resolver {
  public:
   WalkResolver(const std::string& footer, int C, int G) : Resolver(C, G), footer_(footer) {}
   std::string name() const override { return "walk"; }
-  Placement Resolve(const std::vector<char>& want) const override {
+  Placement Resolve(const std::vector<char> &want,
+                    bool include_stats = true) const override {
     std::vector<Loc> grid(static_cast<size_t>(C) * G);
     Reader r(footer_.data(), footer_.size());
     for (Reader::Field f = r.NextField(); f.type != T_STOP; f = r.NextField()) {
@@ -220,7 +303,9 @@ class WalkResolver : public Resolver {
           if (gf.id != RG_COLUMNS || gf.type != T_LIST) { r.Skip(gf.type); continue; }
           Reader::ListHdr cols = r.List();
           for (int32_t c = 0; c < cols.size; ++c) {
-            if (want[c]) grid[static_cast<size_t>(c) * G + g] = ReadColumnInfo(r);
+            if (want[c])
+              grid[static_cast<size_t>(c) * G + g] =
+                  ReadColumnInfo(r, include_stats);
             else r.Skip(T_STRUCT);
           }
         }
@@ -279,7 +364,8 @@ class IndexResolver : public Resolver {
       : Resolver(fi.columns, fi.row_groups), footer_(footer),
         cco_(fi.column_chunk_offsets), bpe_(fi.bytes_per_entry) {}
   std::string name() const override { return "index"; }
-  Placement Resolve(const std::vector<char>& want) const override {
+  Placement Resolve(const std::vector<char> &want,
+                    bool include_stats = true) const override {
     const uint8_t* cco = reinterpret_cast<const uint8_t*>(cco_.data());
     int stride = C + 1;
     Placement out;
@@ -290,7 +376,7 @@ class IndexResolver : public Resolver {
         const uint8_t* p = cco + (static_cast<size_t>(g) * stride + c) * bpe_;
         for (int b = 0; b < bpe_; ++b) bo |= static_cast<int64_t>(p[b]) << (8 * b);
         Reader r(footer_.data() + bo, footer_.size() - static_cast<size_t>(bo));
-        out.push_back(ReadColumnInfo(r));
+        out.push_back(ReadColumnInfo(r, include_stats));
       }
     }
     return out;
@@ -322,6 +408,50 @@ inline ArrayPage ParseArrayPage(Reader& r) {
   r.StructEnd(s);
   return ap;
 }
+
+inline uint64_t ExtractBitsBounded(const uint8_t *data, size_t size,
+                                   size_t index, int width) {
+  if (width == 0)
+    return 0;
+  size_t bit = index * static_cast<size_t>(width);
+  size_t byte = bit >> 3;
+  int shift = bit & 7;
+  unsigned __int128 value = 0;
+  for (int i = 0; i < 9 && byte + i < size; ++i)
+    value |= static_cast<unsigned __int128>(data[byte + i]) << (8 * i);
+  return static_cast<uint64_t>((value >> shift) & LowMask(width));
+}
+
+// Decode the standard Parquet DELTA_BINARY_PACKED payload used by PageArray.
+inline std::vector<int64_t> DecodePageArray(const ArrayPage &ap) {
+  if (ap.encoding == PAGE_ARRAY_BITSET) {
+    std::vector<int64_t> values(ap.num_values);
+    int width = ap.values.size ? static_cast<uint8_t>(ap.values.data[0]) : 0;
+    const uint8_t *packed =
+        reinterpret_cast<const uint8_t *>(ap.values.data) + 1;
+    size_t bytes = ap.values.size ? ap.values.size - 1 : 0;
+    for (int i = 0; i < ap.num_values; ++i)
+      values[i] =
+          static_cast<int64_t>(ExtractBitsBounded(packed, bytes, i, width));
+    return values;
+  }
+  if (ap.encoding != PAGE_ARRAY_DELTA_BINARY_PACKED)
+    throw std::runtime_error("unsupported PageArray encoding");
+#ifndef PFB_HAVE_RUNTIME_DBP
+  throw std::runtime_error(
+      "page decode benchmark requires the runtime DBP bridge");
+#else
+  std::vector<int64_t> values(ap.num_values);
+  size_t output_size = 0;
+  int status = PfbRuntimeDbpDecodeInt64(
+      reinterpret_cast<const uint8_t *>(ap.values.data), ap.values.size,
+      values.data(), values.size(), &output_size);
+  if (status != 0 || output_size != values.size())
+    throw std::runtime_error("runtime DBP decoder rejected PageArray");
+  return values;
+#endif
+}
+
 // value/offset width is the first byte of `values`; the packed stream follows it.
 inline int APWidth(const ArrayPage& ap) {
   return ap.values.size > 0 ? static_cast<uint8_t>(ap.values.data[0]) : 0;
@@ -422,17 +552,19 @@ class ModularResolver : public Resolver {
     }
   }
   std::string name() const override { return "modular"; }
-  Placement Resolve(const std::vector<char>& want) const override {
+  Placement Resolve(const std::vector<char> &want,
+                    bool include_stats = true) const override {
     Placement out;
     for (int c = 0; c < C; ++c) {
       if (!want[c]) continue;
-      if (have_stats_) DecodeColumnStatistics(col_off_[c], col_off_[c + 1] - col_off_[c]);
+      if (have_stats_ && include_stats)
+        DecodeColumnStatistics(col_off_[c], col_off_[c + 1] - col_off_[c]);
       for (int g = 0; g < G; ++g) {
         size_t cc = static_cast<size_t>(c) * G + g;
         Loc L;
         L.off = BitsetAt(dpo_, cc);
         L.size = BitsetAt(tcs_, cc);
-        if (have_stats_) {
+        if (have_stats_ && include_stats) {
           L.has_null = s_has_null_[g]; L.null_count = s_null_count_[g];
           if (s_has_mm_[g]) {
             L.has_mm = true;
@@ -477,6 +609,213 @@ class ModularResolver : public Resolver {
   mutable std::vector<char> s_has_null_, s_has_mm_, s_hp_, s_hms_, s_hxs_;
   mutable std::vector<int64_t> s_null_count_;
   mutable std::vector<Span> s_pref_, s_minsuf_, s_maxsuf_;
+};
+
+// ------- page-first: decode the mandatory physical region map, then resolve
+// each projected column's logical pages to those regions. The cold variant
+// charges the sequential region-offset DBP decode to every operation; the warm
+// variant models a reader retaining the always-read map.
+class PageResolver : public Resolver {
+public:
+  PageResolver(const std::string &mod, int C, int G, bool cold,
+               const std::vector<int64_t> &range_ends)
+      : Resolver(C, G), mod_(mod), cold_(cold), range_ends_(range_ends) {
+    constexpr size_t kTrailerSize = 36;
+    if (mod.size() < kTrailerSize ||
+        std::memcmp(mod.data() + mod.size() - 4, "PMF1", 4) != 0)
+      throw std::runtime_error("page footer missing PMF1 trailer");
+    int64_t map_offset = 0, map_length = 0, root_offset = 0, root_length = 0;
+    const char *trailer = mod.data() + mod.size() - kTrailerSize;
+    std::memcpy(&map_offset, trailer, 8);
+    std::memcpy(&map_length, trailer + 8, 8);
+    std::memcpy(&root_offset, trailer + 16, 8);
+    std::memcpy(&root_length, trailer + 24, 8);
+    if (map_length <= 0 || root_length <= 0 ||
+        static_cast<uint64_t>(map_length + root_length) >
+            mod.size() - kTrailerSize)
+      throw std::runtime_error("invalid PMF1 trailer lengths");
+    size_t root_position =
+        mod.size() - kTrailerSize - static_cast<size_t>(root_length);
+    size_t map_position = root_position - static_cast<size_t>(map_length);
+    base_ = map_offset - static_cast<int64_t>(map_position);
+    if (root_offset - base_ != static_cast<int64_t>(root_position))
+      throw std::runtime_error("PMF1 trailer offsets disagree with lengths");
+
+    Reader map_reader(mod.data() + map_position,
+                      static_cast<size_t>(map_length));
+    for (Reader::Field f = map_reader.NextField(); f.type != T_STOP;
+         f = map_reader.NextField()) {
+      if (f.id == REGION_MAP_OFFSETS && f.type == T_STRUCT)
+        encoded_region_offsets_ = ParseArrayPage(map_reader);
+      else
+        map_reader.Skip(f.type);
+    }
+    region_offsets_ = DecodePageArray(encoded_region_offsets_);
+
+    int64_t page_directory = -1;
+    Reader root(mod.data() + root_position, static_cast<size_t>(root_length));
+    for (Reader::Field f = root.NextField(); f.type != T_STOP;
+         f = root.NextField()) {
+      if (f.id != PAGE_MOD_DIRECTORY || f.type != T_LIST) {
+        root.Skip(f.type);
+        continue;
+      }
+      Reader::ListHdr entries = root.List();
+      for (int32_t i = 0; i < entries.size; ++i) {
+        int32_t kind = -1;
+        int64_t region = -1;
+        int16_t state = root.StructBegin();
+        for (Reader::Field e = root.NextField(); e.type != T_STOP;
+             e = root.NextField()) {
+          if (e.id == PAGE_DIR_KIND)
+            kind = root.I32();
+          else if (e.id == PAGE_DIR_REGION)
+            region = root.I64();
+          else
+            root.Skip(e.type);
+        }
+        root.StructEnd(state);
+        if (kind == PK_PAGE_DIRECTORY)
+          page_directory = region;
+      }
+    }
+    if (page_directory < 0)
+      throw std::runtime_error("page footer is missing a required directory");
+    page_regions_ = ReadDenseDirectory(page_directory, PAGE_DIRECTORY_REGIONS);
+    if (static_cast<int>(page_regions_.size()) != C)
+      throw std::runtime_error(
+          "page footer directory has the wrong column count");
+    if (static_cast<int>(range_ends_.size()) != G)
+      throw std::runtime_error(
+          "legacy row-range count disagrees with page benchmark");
+  }
+
+  std::string name() const override {
+    return cold_ ? "page_cold" : "page_warm";
+  }
+
+  Placement Resolve(const std::vector<char> &want,
+                    bool include_stats = true) const override {
+    if (include_stats)
+      throw std::runtime_error(
+          "page resolver supports placement-only benchmarks");
+    std::vector<int64_t> decoded_offsets;
+    const std::vector<int64_t> *offsets = &region_offsets_;
+    if (cold_) {
+      decoded_offsets = DecodePageArray(encoded_region_offsets_);
+      offsets = &decoded_offsets;
+    }
+    Placement out;
+    for (int c = 0; c < C; ++c) {
+      if (!want[c])
+        continue;
+      Span page_region = Region(page_regions_[c], *offsets);
+      int page_count = -1;
+      ArrayPage encoded_page_regions, encoded_first_rows, dictionary_regions,
+          page_num_values, page_uncompressed_sizes;
+      Span encoded_page_codecs;
+      int fully_dictionary_encoded = -1;
+      Reader pages(page_region.data, page_region.size);
+      for (Reader::Field f = pages.NextField(); f.type != T_STOP;
+           f = pages.NextField()) {
+        if (f.id == COLUMN_PAGE_COUNT && f.type == T_I32)
+          page_count = pages.I32();
+        else if (f.id == COLUMN_PAGE_REGIONS && f.type == T_BINARY)
+          encoded_page_regions.values = pages.BinarySpan();
+        else if (f.id == COLUMN_PAGE_FIRST_ROWS && f.type == T_BINARY)
+          encoded_first_rows.values = pages.BinarySpan();
+        else if (f.id == COLUMN_FULLY_DICTIONARY &&
+                 (f.type == T_TRUE || f.type == T_FALSE))
+          fully_dictionary_encoded = f.type == T_TRUE;
+        else if (f.id == COLUMN_PAGE_CODECS && f.type == T_BINARY)
+          encoded_page_codecs = pages.BinarySpan();
+        else if (f.id == COLUMN_PAGE_DICTIONARIES && f.type == T_BINARY)
+          dictionary_regions.values = pages.BinarySpan();
+        else if (f.id == COLUMN_PAGE_NUM_VALUES && f.type == T_BINARY)
+          page_num_values.values = pages.BinarySpan();
+        else if (f.id == COLUMN_PAGE_UNCOMPRESSED_SIZES && f.type == T_BINARY)
+          page_uncompressed_sizes.values = pages.BinarySpan();
+        else
+          pages.Skip(f.type);
+      }
+      if (page_count < 0 || fully_dictionary_encoded < 0 ||
+          encoded_page_codecs.size == 0)
+        throw std::runtime_error(
+            "column data pages are missing required fields");
+      for (ArrayPage *array :
+           {&encoded_page_regions, &encoded_first_rows, &dictionary_regions,
+            &page_num_values, &page_uncompressed_sizes}) {
+        if (array->values.size == 0)
+          throw std::runtime_error(
+              "column data pages are missing a packed array");
+        array->num_values = page_count;
+      }
+
+      std::vector<Loc> column(G);
+      std::vector<int64_t> starts(G, std::numeric_limits<int64_t>::max());
+      std::vector<int64_t> ends(G, 0);
+      std::vector<char> seen(G, 0);
+      int group = 0;
+      for (int page = 0; page < page_count; ++page) {
+        int64_t first_row = BitsetAt(encoded_first_rows, page);
+        while (group + 1 < G && first_row >= range_ends_[group])
+          ++group;
+        int64_t region = BitsetAt(encoded_page_regions, page);
+        if (region < 0 || static_cast<size_t>(region + 1) >= offsets->size())
+          throw std::runtime_error("data page has an invalid region ordinal");
+        int64_t start = (*offsets)[region], end = (*offsets)[region + 1];
+        if (!seen[group])
+          column[group].off = start;
+        seen[group] = 1;
+        starts[group] = std::min(starts[group], start);
+        ends[group] = std::max(ends[group], end);
+        int64_t dictionary_plus_one = BitsetAt(dictionary_regions, page);
+        if (dictionary_plus_one > 0) {
+          int64_t dictionary = dictionary_plus_one - 1;
+          if (static_cast<size_t>(dictionary + 1) >= offsets->size())
+            throw std::runtime_error(
+                "dictionary page has an invalid region ordinal");
+          starts[group] = std::min(starts[group], (*offsets)[dictionary]);
+          ends[group] = std::max(ends[group], (*offsets)[dictionary + 1]);
+        }
+      }
+      for (int g = 0; g < G; ++g)
+        if (seen[g])
+          column[g].size = ends[g] - starts[g];
+      out.insert(out.end(), column.begin(), column.end());
+    }
+    return out;
+  }
+
+private:
+  Span Region(int64_t ordinal, const std::vector<int64_t> &offsets) const {
+    if (ordinal < 0 || static_cast<size_t>(ordinal + 1) >= offsets.size())
+      throw std::runtime_error("invalid metadata region ordinal");
+    int64_t start = offsets[ordinal] - base_;
+    int64_t end = offsets[ordinal + 1] - base_;
+    if (start < 0 || end < start || static_cast<uint64_t>(end) > mod_.size())
+      throw std::runtime_error(
+          "metadata region is outside the page footer buffer");
+    return {mod_.data() + start, static_cast<uint32_t>(end - start)};
+  }
+
+  std::vector<int64_t> ReadDenseDirectory(int64_t ordinal, int field_id) const {
+    Span region = Region(ordinal, region_offsets_);
+    Reader reader(region.data, region.size);
+    for (Reader::Field f = reader.NextField(); f.type != T_STOP;
+         f = reader.NextField()) {
+      if (f.id == field_id && f.type == T_STRUCT)
+        return DecodePageArray(ParseArrayPage(reader));
+      reader.Skip(f.type);
+    }
+    throw std::runtime_error("page footer directory has no region array");
+  }
+
+  const std::string &mod_;
+  bool cold_;
+  int64_t base_ = 0;
+  ArrayPage encoded_region_offsets_;
+  std::vector<int64_t> region_offsets_, page_regions_, range_ends_;
 };
 
 }  // namespace fdb

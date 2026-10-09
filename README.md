@@ -24,7 +24,7 @@ ctest --test-dir build
 | [`pfb-harness/`](pfb-harness/) | The footer-layout harness: **synthesizes** footer shapes in memory and measures placement `build`/`resolve`/size across candidate layouts, with a fidelity cross-check. `pfb_bench`, `pfb_fidelity_test`. |
 | [`footer-decode-bench/`](footer-decode-bench/) | Two plan-only micro-benchmarks on **real** converted footers: decode speed across four layouts, and column-name resolution (walk vs. a persisted name hash). |
 | [`real-footer-size/`](real-footer-size/) | Footer **size** on real Parquet files. |
-| `jumptable-footer/`, `modular-footer/` | The footer-variation **definitions** (Thrift) and the converters that turn a real Parquet footer into each variation. The modular footer's optional `SCHEMA_INDEX` module lives here. |
+| `jumptable-footer/`, `modular-footer/` | The footer-variation **definitions** (Thrift) and the converters that turn a real Parquet file into each variation. This includes the page-first [design](modular-footer/PageFirstModularFooter.md) and [Thrift schema](modular-footer/PageFirstModularFooter.thrift), plus the current modular footer's optional `SCHEMA_INDEX` module. |
 | [`include/pfb/`](include/pfb/) | `bitpack.h` — shared LSB bit-packing used by the harness and the converters. |
 
 ## License
